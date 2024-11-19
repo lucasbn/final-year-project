@@ -8,7 +8,8 @@
 
 #define PORT 3000
 #define SERVER_ADDR "127.0.0.1"
-#define BUFFER_SIZE 1024
+#define HEADER_SIZE 4
+#define BUFFER_SIZE 1024 * 25
 #define ITERATIONS 250000
 
 int main(int argc, char const *argv[])
@@ -52,8 +53,12 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
-  char message[BUFFER_SIZE];
-  memset(message, '0', sizeof(message));
+  // The message contains a header (4 bytes) with the payload size, and the
+  // payload itself
+  char message[HEADER_SIZE + BUFFER_SIZE];
+  int32_t value = BUFFER_SIZE;
+  memcpy(message, &value, sizeof(value));
+  memset(&message[HEADER_SIZE], '0', BUFFER_SIZE);
 
   /* Send data to server. */
   double total_time = 0.0;
@@ -62,14 +67,16 @@ int main(int argc, char const *argv[])
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     // Request
-    if (send(client_fd, message, BUFFER_SIZE, 0) < 0) {
-      perror("send failed");
+    ssize_t bytes_sent = send(client_fd, message, sizeof(message), 0);
+    if (bytes_sent < 0) {
+      perror("send failed (client)");
       continue;
     }
+
     // Response
-    char buffer[BUFFER_SIZE] = {0};
-    if (read(client_fd, buffer, BUFFER_SIZE) <= 0) {
-      perror("read failed");
+    char buffer[sizeof(message)] = {0};
+    if (read(client_fd, buffer, sizeof(message)) <= 0) {
+      perror("read failed (client)");
       continue;
     }
 
@@ -79,7 +86,14 @@ int main(int argc, char const *argv[])
     total_time += time_taken;
   }
 
-  printf("Average RTT: %f microseconds\n", (total_time / ITERATIONS) * 1e6);
+  // Each request contains the buffer and the header, where as each response
+  // only contains the buffer.
+  double total_gbytes = (HEADER_SIZE + BUFFER_SIZE * 2) * (ITERATIONS / 1e9);
+
+  printf("\033[1;35m"); // Set bold and pink (magenta) color
+  printf("%-20s %10.2f microseconds\n", "Average RTT:", (total_time / ITERATIONS) * 1e6);
+  printf("%-20s %10.2f GB/sec\n", "Throughput:", ((4 / 1e9) * ITERATIONS + ((2 * BUFFER_SIZE) / 1e9) * ITERATIONS) / total_time);
+  printf("\033[0m"); // Reset the style (remove bold and color)
 
   /* Close connection between client and server. */
   close(client_fd);

@@ -6,11 +6,10 @@
 #include <unistd.h>
 
 #define PORT 3000
-#define BUFFER_SIZE 1024
+#define HEADER_SIZE 4
 
 int main(int argc, char const *argv[])
 {
-
   /*  Create socket file descriptor.
    *
    *  socket(domain, type, protocol)
@@ -78,28 +77,43 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
-  char message[BUFFER_SIZE];
-  memset(message, '0', sizeof(message));
-
   /* Continuously read and echo data from the client. */
-  while (true) {
-      // Receive request
-      char buffer[BUFFER_SIZE] = {0};
-      ssize_t bytes_read = read(connection_fd, buffer, BUFFER_SIZE);
-
-      if (bytes_read <= 0) {
-          // If no data is read or the connection is closed, break the loop
+  while (1) {
+      // Read the request header, which is a 4 byte integer containing the size
+      // of the payload
+      char header[HEADER_SIZE] = {0};
+      ssize_t bytes_read = read(connection_fd, header, HEADER_SIZE);
+      if (bytes_read != HEADER_SIZE) {
           if (bytes_read != 0) {
-              perror("read failed");
+              perror("read failed (server)");
+          }
+          break;
+      }
+
+      int32_t payload_size = *((int32_t*)header);
+
+      // Allocate a buffer large enough to hold the payload
+      char *buffer = malloc(payload_size);
+      if (!buffer) {
+          perror("malloc failed (server)");
+          return -1;
+      }
+      bytes_read = read(connection_fd, buffer, payload_size);
+
+      if (bytes_read != payload_size) {
+          if (bytes_read != 0) {
+              perror("read failed (server)");
           }
           break;
       }
 
       // Echo the received message back to the client
       if (send(connection_fd, buffer, bytes_read, 0) <= 0) {
-          perror("send failed");
+          perror("send failed (server)");
           break;
       }
+
+      free(buffer);
   }
 
   /* Close connection between client and server. */
