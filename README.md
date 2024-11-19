@@ -26,3 +26,13 @@ from the server. The average round trip time is then calculated as the sum of
 the time it took to send/receive each request and response, divided by the
 number of requests (250,000). It repeats the experiment after loading in the
 eBPF program.
+
+I'm running the experiment on a virtual machine running Ubuntu 24.10 (ARM) and
+get the following results:
+
+```
+Average RTT (without bypasser): 42.721052 microseconds
+Average RTT (with bypasser): 39.326267 microseconds
+```
+
+Which means roughly an 8% decrease in latency with the bypasser
