@@ -78,16 +78,28 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
-  /* Read and print data from client. */
-  for (int i = 0; i < 1; i++) {
-    // Receive request
-    char buffer[BUFFER_SIZE] = {0};
-    read(connection_fd, buffer, BUFFER_SIZE);
+  char message[BUFFER_SIZE];
+  memset(message, '0', sizeof(message));
 
-    // Send response
-    char message[BUFFER_SIZE];
-    memset(message, '0', sizeof(message));
-    send(connection_fd, message, BUFFER_SIZE, 0);
+  /* Continuously read and echo data from the client. */
+  while (true) {
+      // Receive request
+      char buffer[BUFFER_SIZE] = {0};
+      ssize_t bytes_read = read(connection_fd, buffer, BUFFER_SIZE);
+
+      if (bytes_read <= 0) {
+          // If no data is read or the connection is closed, break the loop
+          if (bytes_read != 0) {
+              perror("read failed");
+          }
+          break;
+      }
+
+      // Echo the received message back to the client
+      if (send(connection_fd, buffer, bytes_read, 0) <= 0) {
+          perror("send failed");
+          break;
+      }
   }
 
   /* Close connection between client and server. */

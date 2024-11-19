@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #define PORT 3000
 #define SERVER_ADDR "127.0.0.1"
 #define BUFFER_SIZE 1024
+#define ITERATIONS 250000
 
 int main(int argc, char const *argv[])
 {
@@ -51,25 +52,34 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
+  char message[BUFFER_SIZE];
+  memset(message, '0', sizeof(message));
+
   /* Send data to server. */
-  for (int i = 0; i < 1; i++) {
-    struct timeval start, end;
-    gettimeofday(&start, NULL);
+  double total_time = 0.0;
+  for (int i = 0; i < ITERATIONS; i++) {
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
     // Request
-    char message[BUFFER_SIZE];
-    memset(message, '0', sizeof(message));
-    send(client_fd, message, BUFFER_SIZE, 0);
-
+    if (send(client_fd, message, BUFFER_SIZE, 0) < 0) {
+      perror("send failed");
+      continue;
+    }
     // Response
     char buffer[BUFFER_SIZE] = {0};
-    read(client_fd, buffer, BUFFER_SIZE);
+    if (read(client_fd, buffer, BUFFER_SIZE) <= 0) {
+      perror("read failed");
+      continue;
+    }
 
-    gettimeofday(&end, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &end);
 
-    double time_taken = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
-    printf("Time taken: %f seconds\n", time_taken);
+    double time_taken = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    total_time += time_taken;
   }
+
+  printf("Average RTT: %f microseconds\n", (total_time / ITERATIONS) * 1e6);
 
   /* Close connection between client and server. */
   close(client_fd);
