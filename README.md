@@ -13,7 +13,7 @@ to another, we can use eBPF to redirect packets to the destination socket before
 they traverse the TCP/IP stack in the kernel, and gain a slight performance
 benefit.
 
-![TCP Bypassing](images/tcp-bypass.png)
+<img src="images/tcp-bypass.png" alt="TCP Bypassing" width="350" />
 
 First, compile the tcp-bypasser by running `make` in the `/tcp-bypasser`
 directory. Then, you can run an experiment with:
