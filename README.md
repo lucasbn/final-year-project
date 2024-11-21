@@ -33,8 +33,34 @@ I'm running the experiment on a virtual machine running Ubuntu 24.10 (ARM) and
 get the following results:
 
 ```
-Average RTT (without bypasser): 42.721052 microseconds
-Average RTT (with bypasser): 39.326267 microseconds
+Average RTT (without bypasser): 42.72 microseconds
+Average RTT (with bypasser): 39.32 microseconds
 ```
 
 Which means roughly an 8% decrease in latency with the bypasser
+
+# Multi-port: dynamically remap port bindings
+
+Network namespaces allow processes within a container to bind to a particular
+port, and the "same" port can be bound to across different namespaces. On the
+underlying host, we cannot bind different sockets to the same port. Network
+namespaces provide a mapping between the port as seen by the container, and
+the actual host port that is bound to.
+
+This acheives something similar with three eBPF programs. These eBPF programs
+intercept two different syscalls (`bind` and `getsockname`) and modify their
+arguments / return values. 
+
+Whenever a `bind` syscall is made, an eBPF program is called (just before the
+syscall is handled) which modifies the arguments made to the syscall. If the
+port number that the socket is being bound to is 3000, it pick a random port and
+overwrite the port number argument. This means that the socket is not bound to
+port 3000 and instead bound to a random port. The eBPF program also updates a
+mapping from the randomly assigned port to the orignal port (3000).
+
+The other eBPF programs ensure that this remapping is unobservable. They
+intercept the `getsockname` syscall: one at entry and one at exit. At entry, we
+store the user space pointer at which the `struct sockaddr_in` data is stored
+during the execution of the syscall in a map, so that we can access it at exit.
+We use the PID as the key for this pointer. Then, at exit, we get this pointer
+and updates the `sin_port` field according to our mapping set during the `bind`.

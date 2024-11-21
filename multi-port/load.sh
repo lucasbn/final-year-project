@@ -1,0 +1,1 @@
+bpftool prog loadall ./multiport.bpf.o /sys/fs/bpf autoattach

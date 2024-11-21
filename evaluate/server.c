@@ -29,6 +29,8 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
+  printf("%d\n", htons(PORT));
+
   struct sockaddr_in address = {
       .sin_family = AF_INET,         /* Type of address (IPv4) */
       .sin_addr.s_addr = INADDR_ANY, /* Special Empty IP Address.*/
@@ -45,6 +47,7 @@ int main(int argc, char const *argv[])
     exit(EXIT_FAILURE);
   }
 
+  printf("Binding\n");
   /*  Bind the socket to the address and port number. */
   if (bind(server_fd, addr_ptr, addrlen) < 0)
   {
