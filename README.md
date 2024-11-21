@@ -64,3 +64,5 @@ store the user space pointer at which the `struct sockaddr_in` data is stored
 during the execution of the syscall in a map, so that we can access it at exit.
 We use the PID as the key for this pointer. Then, at exit, we get this pointer
 and updates the `sin_port` field according to our mapping set during the `bind`.
+
+<img src="images/multiport.png" alt="Multiport" />
