@@ -7,7 +7,8 @@
 #include <unistd.h>
 
 #define PORT 3000
-#define SERVER_ADDR "127.0.0.1"
+#define SERVER_ADDR "10.0.1.15"
+// #define SERVER_ADDR "127.0.0.1"
 #define HEADER_SIZE 4
 #define BUFFER_SIZE 1024 * 25
 #define ITERATIONS 250000
