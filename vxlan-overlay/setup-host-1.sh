@@ -31,5 +31,7 @@ ip link add vxlan-red type vxlan id 100 local 192.168.228.131 remote 192.168.228
 ip link set vxlan-red master bridge-main
 ip link set vxlan-red up
 
+# Add an ip forwarding rule to allow the bridge to forward packets from one interface to another
+iptables -t filter -A FORWARD -i bridge-main -j ACCEPT
 
 
