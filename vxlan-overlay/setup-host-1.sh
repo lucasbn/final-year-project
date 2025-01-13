@@ -25,7 +25,7 @@ ip link set bridge-main up
 ip netns exec red ip route add default via 10.0.0.1
 
 # Create a VXLAN tunnel interface to connect to host 2
-ip link add vxlan-red type vxlan id 100 local 192.168.228.131 remote 192.168.228.132 dev eth0 dstport 4789
+ip link add vxlan-red type vxlan id 100 dev eth0 dstport 4789
 
 # Attach vxlan-red to the bridge
 ip link set vxlan-red master bridge-main
