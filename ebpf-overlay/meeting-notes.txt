@@ -1,0 +1,13 @@
+04/02/2025:
+
+- Demo: can call bind on any IP address and port, and then connect
+    to that IP/port from the same machine. No controls around
+    it, could start building that up but want to agree on an
+    interface
+- Netlink: I only have a vague understanding of what it is 
+    and don't quite see why it is necessarily relevant. We
+    spoke last time about whether or not we want to replace
+    *all* the namespace functionality or just keep a subset of 
+    it.
+
+- Per core versus global maps

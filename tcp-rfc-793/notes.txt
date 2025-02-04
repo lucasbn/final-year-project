@@ -1,0 +1,23 @@
+TCP is a protocol which provides robustness in the presence of communication
+unreliability and avilability in the precense of congestion.
+
+TCP assumes it can obtain a simple, potentially unreliable datagram service from
+the lower level protocols.
+
+The TCP interfaces on one side to user or application processes and on the other
+side to a lower level protocol such as Internet Protocol.
+
+    - Socket interface
+    - Very minimal interface to IP layer which is just being able to pass data
+
+Reliability: must recover from data that is damaged, lost, duplicated or
+delivered out of order. Sequence numbers, timeouts, checksums
+
+Flow control: receiver can govern the amount of data sent by the sender. Window
+
+Multiplexing: assigns port numbers to allow many processes within a single host
+to use TCP communication simultaneously
+
+Connections: TCP needs to initialize and maintain certain status information for
+each data stream, which makes up a connection. This connection needs to be
+established and freed
