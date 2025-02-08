@@ -1,0 +1,109 @@
+The goal is to be able to emulate the behaviour of network namespaces and
+virtual interfaces such that processes in different namespaces (inter/intra
+host) can communicate with zero overhead and for these emulated namespaces to
+have little configuration overhead (i.e startup time).
+
+To achieve this zero communication overhead, all sockets will be placed in the
+host namespace, but the process will be unaware of this. Many system calls will
+need to be manipulated to achieve this masking, but perhaps the two most
+important system calls are bind() and connect(). In this document, I'm only
+considering TCP/IP sockets.
+
+### Interfaces
+
+Within a namespace, an interface will be emulated but all actions will actually
+be performed on a selected host interface (e.g eth0). To begin with, an emulated
+interface will look like:
+
+struct interface {
+    __u32 ip_addr;
+    void *host_interface;
+}
+
+### bind()
+
+The bind system call will have a thin translation layer inserted at entry, which
+inspects the arguments (for TCP/IP, ip address and port number) and translates
+them into valid arguments to ensure the socket can be successfully bound to a
+host interface. This means, for TCP/IP, changing the IP address to that of the
+host interface and selecting any free port. This mapping needs to be stored for
+the life time of the socket so it can be used in other system calls.
+
+### connect()
+
+If a process attempts to establish a connection with the private subnet IP
+address, we need to perform a translation using the mapping created when the
+bind system call was invoked. This will ensure that we attempt to make the
+connection to the correct (host) IP address and port number.
+
+### accept()
+
+This is where the magic happens (I _think_). Instead of passing a judgement on
+each packet individually using the IP routing table and bridge FDB, we make that
+judgement once and it decides whether or not to accept the connection. 
+
+--
+
+Let's start simple: how can we model two namespaces on the same host connected
+via a bridge. First, a reminder on how this is traditionally created:
+
+    - Create two namespaces
+    - Create two veth pairs and a bridge
+    - Move one side of each veth pair into a namespace,
+        and attach the other side to the bridge
+    - Assign IP addresses to the veths inside the namespaces
+
+This creates a valid path for packets to traverse from one namespace to the
+other. There is a small communication overhead for packets compared to two
+processes in the same namespace communicating, because the packets need to be
+processed by the bridge. This is a shame, because we know at connection time
+exactly what the bridge verdict on all packets will be (assuming the FDB is
+unaltered).
+
+eBPF already offers a solution to this overhead: during the three-way TCP
+handshake, you can determine which two sockets are involved in the connection
+and then completely avoid all network stack processing and move packets directly
+from one sockets send queue to another sockets receive queue. This is great, but
+it has some limitations (e.g no UDP support) and is _somewhat_ suboptimal in the
+sense that the handshake packets still traverse the extended path. What we want
+to do is similar to this, but in a more extensible way.
+
+Both client and server side sockets will be inside the _host_ namespace, which
+means that all communication through them will by default avoid the bridge.
+However, this now means that any process in the host namespace (or indeed
+potentially any host on the internet) can now connect to the server. This is
+clearly an issue, and we need to find some way to block these invalid
+connections.
+
+Eventually, we want to override the commands invoked by the user to create and
+configure the namespaces/bridges. Instead of _actually_ creating the namespaces
+and virtual interfaces, we just want to represent these in some eBPF accessible
+data structure and provide the illusion to the user that they exist. Then, when
+it comes to establishing a connection we can examine this state and decide
+whether or not the connection is valid.
+
+That means we need to define some data structures to represent the state of
+bridges, virtual interfaces and namespaces.
+
+struct ebpf_veth {
+    __u32 veth_id;
+    __u32 pair_veth_id;
+    __u32 bridge_id;
+    __u32 ip_addr;
+    __u32 host_interface;
+}
+
+struct ebpf_bridge {
+    __u32 bridge_id;
+    __u32 veths[];
+}
+
+struct ebpf_ns {
+    __u32 ns_id;
+    __u32 veths[];
+}
+
+MAP: pid       -> ns_id
+MAP: ns_id     -> struct ebpf_ns
+MAP: bridge_id -> struct ebpf_bridge
+MAP: veth_id   -> ebpf_veth

@@ -1,1 +1,0 @@
-bpftool prog loadall ./build/overlay.bpf.o /sys/fs/bpf autoattach

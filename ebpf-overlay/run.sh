@@ -1,0 +1,1 @@
+go generate && mkdir -p build && go build -o build/ && ./build/ebpf-overlay
