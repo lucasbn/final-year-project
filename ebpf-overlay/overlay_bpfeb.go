@@ -12,12 +12,34 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type overlayEbpfNs struct{ Ip uint32 }
+type overlayEbpfBridge struct {
+	BridgeId uint32
+	Veths    [2]uint32
+}
+
+type overlayEbpfNs struct {
+	NsId  uint32
+	Veths [1]uint32
+}
+
+type overlayEbpfVeth struct {
+	VethId        uint32
+	PairVethId    uint32
+	BridgeId      uint32
+	IpAddr        uint32
+	HostInterface uint32
+}
 
 type overlayIpPortPair struct {
+	NsId uint32
 	Ip   uint32
 	Port uint16
 	_    [2]byte
+}
+
+type overlaySockaddrData struct {
+	UaddrPtr int64
+	Addrlen  int64
 }
 
 // loadOverlay returns the embedded CollectionSpec for overlay.
@@ -62,22 +84,24 @@ type overlaySpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type overlayProgramSpecs struct {
-	HandleGetsocknameEntry *ebpf.ProgramSpec `ebpf:"handle_getsockname_entry"`
-	OnProcessExec          *ebpf.ProgramSpec `ebpf:"on_process_exec"`
-	OnProcessExit          *ebpf.ProgramSpec `ebpf:"on_process_exit"`
-	TpSysEnterBind         *ebpf.ProgramSpec `ebpf:"tp_sys_enter_bind"`
-	TpSysEnterConnect      *ebpf.ProgramSpec `ebpf:"tp_sys_enter_connect"`
-	TpSysEnterGetsockname  *ebpf.ProgramSpec `ebpf:"tp_sys_enter_getsockname"`
+	SockSetState          *ebpf.ProgramSpec `ebpf:"sock_set_state"`
+	TpSysEnterBind        *ebpf.ProgramSpec `ebpf:"tp_sys_enter_bind"`
+	TpSysEnterConnect     *ebpf.ProgramSpec `ebpf:"tp_sys_enter_connect"`
+	TpSysEnterGetsockname *ebpf.ProgramSpec `ebpf:"tp_sys_enter_getsockname"`
+	TpSysExitGetsockname  *ebpf.ProgramSpec `ebpf:"tp_sys_exit_getsockname"`
 }
 
 // overlayMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type overlayMapSpecs struct {
-	EbpfNsMap   *ebpf.MapSpec `ebpf:"ebpf_ns_map"`
-	EnidsMap    *ebpf.MapSpec `ebpf:"enids_map"`
-	HostToNsMap *ebpf.MapSpec `ebpf:"host_to_ns_map"`
-	NsToHostMap *ebpf.MapSpec `ebpf:"ns_to_host_map"`
+	EbpfBridgeMap *ebpf.MapSpec `ebpf:"ebpf_bridge_map"`
+	EbpfNsMap     *ebpf.MapSpec `ebpf:"ebpf_ns_map"`
+	EbpfVethMap   *ebpf.MapSpec `ebpf:"ebpf_veth_map"`
+	FdSockMap     *ebpf.MapSpec `ebpf:"fd_sock_map"`
+	HostToNsMap   *ebpf.MapSpec `ebpf:"host_to_ns_map"`
+	NsToHostMap   *ebpf.MapSpec `ebpf:"ns_to_host_map"`
+	PidEnidMap    *ebpf.MapSpec `ebpf:"pid_enid_map"`
 }
 
 // overlayVariableSpecs contains global variables before they are loaded into the kernel.
@@ -106,18 +130,24 @@ func (o *overlayObjects) Close() error {
 //
 // It can be passed to loadOverlayObjects or ebpf.CollectionSpec.LoadAndAssign.
 type overlayMaps struct {
-	EbpfNsMap   *ebpf.Map `ebpf:"ebpf_ns_map"`
-	EnidsMap    *ebpf.Map `ebpf:"enids_map"`
-	HostToNsMap *ebpf.Map `ebpf:"host_to_ns_map"`
-	NsToHostMap *ebpf.Map `ebpf:"ns_to_host_map"`
+	EbpfBridgeMap *ebpf.Map `ebpf:"ebpf_bridge_map"`
+	EbpfNsMap     *ebpf.Map `ebpf:"ebpf_ns_map"`
+	EbpfVethMap   *ebpf.Map `ebpf:"ebpf_veth_map"`
+	FdSockMap     *ebpf.Map `ebpf:"fd_sock_map"`
+	HostToNsMap   *ebpf.Map `ebpf:"host_to_ns_map"`
+	NsToHostMap   *ebpf.Map `ebpf:"ns_to_host_map"`
+	PidEnidMap    *ebpf.Map `ebpf:"pid_enid_map"`
 }
 
 func (m *overlayMaps) Close() error {
 	return _OverlayClose(
+		m.EbpfBridgeMap,
 		m.EbpfNsMap,
-		m.EnidsMap,
+		m.EbpfVethMap,
+		m.FdSockMap,
 		m.HostToNsMap,
 		m.NsToHostMap,
+		m.PidEnidMap,
 	)
 }
 
@@ -131,22 +161,20 @@ type overlayVariables struct {
 //
 // It can be passed to loadOverlayObjects or ebpf.CollectionSpec.LoadAndAssign.
 type overlayPrograms struct {
-	HandleGetsocknameEntry *ebpf.Program `ebpf:"handle_getsockname_entry"`
-	OnProcessExec          *ebpf.Program `ebpf:"on_process_exec"`
-	OnProcessExit          *ebpf.Program `ebpf:"on_process_exit"`
-	TpSysEnterBind         *ebpf.Program `ebpf:"tp_sys_enter_bind"`
-	TpSysEnterConnect      *ebpf.Program `ebpf:"tp_sys_enter_connect"`
-	TpSysEnterGetsockname  *ebpf.Program `ebpf:"tp_sys_enter_getsockname"`
+	SockSetState          *ebpf.Program `ebpf:"sock_set_state"`
+	TpSysEnterBind        *ebpf.Program `ebpf:"tp_sys_enter_bind"`
+	TpSysEnterConnect     *ebpf.Program `ebpf:"tp_sys_enter_connect"`
+	TpSysEnterGetsockname *ebpf.Program `ebpf:"tp_sys_enter_getsockname"`
+	TpSysExitGetsockname  *ebpf.Program `ebpf:"tp_sys_exit_getsockname"`
 }
 
 func (p *overlayPrograms) Close() error {
 	return _OverlayClose(
-		p.HandleGetsocknameEntry,
-		p.OnProcessExec,
-		p.OnProcessExit,
+		p.SockSetState,
 		p.TpSysEnterBind,
 		p.TpSysEnterConnect,
 		p.TpSysEnterGetsockname,
+		p.TpSysExitGetsockname,
 	)
 }
 
